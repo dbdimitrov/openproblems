@@ -1,7 +1,6 @@
-from .....tools.conversion import r_function
 from .....tools.decorators import method
 from .....tools.normalize import log_cp10k
-from .....tools.utils import check_r_version
+
 from ..utils import aggregate_method_scores
 from ..utils import ligand_receptor_resource
 
