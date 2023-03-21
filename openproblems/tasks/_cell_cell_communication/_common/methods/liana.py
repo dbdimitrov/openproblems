@@ -1,14 +1,20 @@
 from .....tools.decorators import method
 from .....tools.normalize import log_cp10k
-
 from ..utils import aggregate_method_scores
 from ..utils import ligand_receptor_resource
+from liana.method import cellchat
+from liana.method import cellphonedb
+from liana.method import connectome
+from liana.method import geometric_mean
+from liana.method import logfc
+from liana.method import natmi
+from liana.method import rank_aggregate
+from liana.method import singlecellsignalr
+from liana.multi._common import _process_scores
 
 import functools
-
 import liana as li
-from liana.multi._common import _process_scores
-from liana.method import rank_aggregate, singlecellsignalr, connectome, cellphonedb, natmi, logfc, cellchat, geometric_mean
+
 
 # Helper function to filter according to permutation p-values
 def _p_filt(x, y):
@@ -16,6 +22,7 @@ def _p_filt(x, y):
         return y
     else:
         return 0
+
 
 _liana_method = functools.partial(
     method,
@@ -30,7 +37,8 @@ _liana_method = functools.partial(
     paper_reference="dimitrov2022comparison",
     paper_year=2022,
     code_url="https://github.com/saezlab/liana-py",
-    image="openproblems-r-extras", # TODO discuss image with Scott
+    # TODO discuss fitting image with Scott (dependencies would be scanpy, pypath, liana)
+    image="openproblems-r-extras",
 )
 
 
@@ -43,7 +51,7 @@ def _liana(
 ):
     # log-normalize
     adata = log_cp10k(adata)
-    
+
     if test:
         n_perms = 2
     else:
@@ -51,41 +59,46 @@ def _liana(
 
     # TODO replace this with pypath
     resource = ligand_receptor_resource(adata.uns["target_organism"])
-    resource = (resource[["source_genesymbol", "target_genesymbol"]].
-                rename(columns={"source_genesymbol": "ligand", "target_genesymbol": "receptor"}))
+    resource = resource[["source_genesymbol", "target_genesymbol"]].rename(
+        columns={"source_genesymbol": "ligand", "target_genesymbol": "receptor"}
+    )
 
     # Run LIANA
-    method(adata=adata,
-           groupby="label",
-           resource=resource,
-           expr_prop=min_expression_prop,
-           key_added='ccc_pred',
-           n_perms=n_perms,
-           layer='log_cp10k',
-           use_raw=False,
-           )
-    liana_res = adata.uns['ccc_pred']
-    
+    method(
+        adata=adata,
+        groupby="label",
+        resource=resource,
+        expr_prop=min_expression_prop,
+        key_added="ccc_pred",
+        n_perms=n_perms,
+        layer="log_cp10k",
+        use_raw=False,
+    )
+    liana_res = adata.uns["ccc_pred"]
+
     # deal with any scores in ascending order (typically probabilities)
-    adata.uns['ccc_pred'] = _process_scores(liana_res,
-                                            score_key=score_key,
-                                            inverse_fun=lambda x: 1 - x
-                                            )
-    
+    adata.uns["ccc_pred"] = _process_scores(
+        liana_res, score_key=score_key, inverse_fun=lambda x: 1 - x
+    )
+
     # apply p-value filter to those that use it
-    pval_methods = [cellphonedb.magnitude,
-                    # TODO discuss: it's fair but magnitude rank will represent be magnitude alone
-                    rank_aggregate.magnitude,
-                    geometric_mean.magnitude,
-                    cellchat.magnitude]
+    pval_methods = [
+        cellphonedb.magnitude,
+        # TODO discuss: it's fair but now magnitude rank represents magnitude alone
+        rank_aggregate.magnitude,
+        geometric_mean.magnitude,
+        cellchat.magnitude,
+    ]
     if score_key in pval_methods:
         adata.uns["ccc_pred"][method.magnitude] = adata.uns["ccc_pred"].apply(
-        lambda x: _p_filt(x[method.specificity], x[method.magnitude]), axis=1)
-    
-    liana_res[['ligand', 'receptor']] = \
-        liana_res[['ligand_complex', 'receptor_complex']]
-    liana_res = liana_res.rename(columns={score_key: 'score'})
-    
+            lambda x: _p_filt(x[method.specificity], x[method.magnitude]), axis=1
+        )
+
+    liana_res[["ligand", "receptor"]] = liana_res[
+        ["ligand_complex", "receptor_complex"]
+    ]
+    liana_res = liana_res.rename(columns={score_key: "score"})
+
     adata.uns["ccc_pred"] = liana_res
     adata.uns["method_code_version"] = li.__version__
 
@@ -96,11 +109,12 @@ def _liana(
     method_name="Specificity Rank Aggregate (max)",
 )
 def specificity_max(adata, test=False):
-    adata = _liana(adata=adata, 
-                   method=rank_aggregate,
-                   test=test,
-                   score_key=rank_aggregate.specificity
-                   )
+    adata = _liana(
+        adata=adata,
+        method=rank_aggregate,
+        test=test,
+        score_key=rank_aggregate.specificity,
+    )
     adata.uns["ccc_pred"] = aggregate_method_scores(adata, how="max")
 
     return adata
@@ -110,11 +124,12 @@ def specificity_max(adata, test=False):
     method_name="Specificity Rank Aggregate (sum)",
 )
 def specificity_sum(adata, test=False):
-    adata = _liana(adata=adata, 
-                   method=rank_aggregate,
-                   test=test,
-                   score_key=rank_aggregate.specificity
-                   )
+    adata = _liana(
+        adata=adata,
+        method=rank_aggregate,
+        test=test,
+        score_key=rank_aggregate.specificity,
+    )
     adata.uns["ccc_pred"] = aggregate_method_scores(adata, how="sum")
 
     return adata
@@ -124,11 +139,12 @@ def specificity_sum(adata, test=False):
     method_name="Magnitude Rank Aggregate (max)",
 )
 def magnitude_max(adata, test=False):
-    adata = _liana(adata=adata,
-                   method=rank_aggregate,
-                   test=test,
-                   score_key=rank_aggregate.magnitude
-                   )
+    adata = _liana(
+        adata=adata,
+        method=rank_aggregate,
+        test=test,
+        score_key=rank_aggregate.magnitude,
+    )
     adata.uns["ccc_pred"] = aggregate_method_scores(adata, how="max")
 
     return adata
@@ -138,11 +154,12 @@ def magnitude_max(adata, test=False):
     method_name="Magnitude Rank Aggregate (sum)",
 )
 def magnitude_sum(adata, test=False):
-    adata = _liana(adata=adata,
-                    method=rank_aggregate,
-                    test=test,
-                    score_key=rank_aggregate.magnitude
-                    )
+    adata = _liana(
+        adata=adata,
+        method=rank_aggregate,
+        test=test,
+        score_key=rank_aggregate.magnitude,
+    )
     adata.uns["ccc_pred"] = aggregate_method_scores(adata, how="sum")
 
     return adata
@@ -166,11 +183,9 @@ _cellphonedb_method = functools.partial(
 
 
 def _cellphonedb(adata, test=False):
-    adata = _liana(adata=adata,
-                   method=cellphonedb,
-                   test=test,
-                   score_key=cellphonedb.magnitude
-                   )
+    adata = _liana(
+        adata=adata, method=cellphonedb, test=test, score_key=cellphonedb.magnitude
+    )
     return adata
 
 
@@ -211,7 +226,9 @@ _connectome_method = functools.partial(
 
 
 def _connectome(adata, test=False):
-    return _liana(adata=adata, method=connectome, test=test, score_key=connectome.specificity)
+    return _liana(
+        adata=adata, method=connectome, test=test, score_key=connectome.specificity
+    )
 
 
 @_connectome_method(
@@ -327,7 +344,12 @@ _sca_method = functools.partial(
 
 
 def _sca(adata, test=False):
-    return _liana(adata=adata, method=singlecellsignalr, test=test, score_key=singlecellsignalr.magnitude)
+    return _liana(
+        adata=adata,
+        method=singlecellsignalr,
+        test=test,
+        score_key=singlecellsignalr.magnitude,
+    )
 
 
 @_sca_method(
@@ -349,23 +371,27 @@ def sca_sum(adata, test=False):
 
     return adata
 
+
 _cellchat_method = functools.partial(
     _liana_method,
     method_summary=(
-        "This a resource-agnostic adaptation of CellChat, provides a magnitude score as:"
-        r"$ LRprob = \frac{TriMean(L) \cdot TriMean(R)}{Kh + TriMean(L) \cdot TriMean(R)} $"
-        " where Kh = 0.5 by default and `TriMean` represents Tuckey's Trimean function:"
+        "This a resource-agnostic adaptation of CellChat, provides a magnitude score"
+        " as: "
+        r"$ LRprob = \frac{TriMean(l) \cdot TriMean(r)}{Kh + TriMean(l) \cdot"
+        r" TriMean(r)} $"
+        " where Kh = 0.5 by default, $l$ and $r$ are the average ligand,"
+        " and `TriMean` represents Tuckey's Trimean function:"
         r" $TriMean(X) = \frac{Q_{0.25}(X) + 2 \cdot Q_{0.5}(X) + Q_{0.75}(X)}{4}$"
-        " CellChat also provides a permutation-based p-value as a measure of specificity."
+        " CellChat also provides a permutation-based p-value as a measure of"
+        " specificity."
         " Here, we use the former to prioritize interactions, subsequent"
         " to filtering according to p-value less than 0.05."
     ),
-    paper_name=(
-        "Inference and analysis of cell-cell communication using CellChat"
-    ),
+    paper_name="Inference and analysis of cell-cell communication using CellChat",
     paper_reference="jin2022cellchat",
     paper_year=2022,
 )
+
 
 def _cellchat(adata, test=False):
     return _liana(adata=adata, method=cellchat, test=test, score_key=cellchat.magnitude)
@@ -400,7 +426,7 @@ _geometric_mean_method = functools.partial(
         " Here, we use the former to prioritize interactions, subsequent"
         " to filtering according to p-value less than 0.05."
     ),
-    paper_name=( # TODO change to liana x Tensor paper? Or just keep it as is?
+    paper_name=(  # TODO change to liana x Tensor paper? Or just keep it as is?
         "CellPhoneDB: inferring cell–cell communication from combined expression of"
         " multi-subunit ligand–receptor complexes"
     ),
@@ -408,8 +434,14 @@ _geometric_mean_method = functools.partial(
     paper_year=2020,
 )
 
+
 def _geomeric_mean(adata, test=False):
-    return _liana(adata=adata, method=geometric_mean, test=test, score_key=geometric_mean.magnitude)
+    return _liana(
+        adata=adata,
+        method=geometric_mean,
+        test=test,
+        score_key=geometric_mean.magnitude,
+    )
 
 
 @_geometric_mean_method(
