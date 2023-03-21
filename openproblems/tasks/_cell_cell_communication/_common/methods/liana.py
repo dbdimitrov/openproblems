@@ -57,7 +57,7 @@ def _liana(
     else:
         n_perms = 1000
 
-    # TODO replace this with pypath
+    # TODO replace this with pypath (most challenging part)
     resource = ligand_receptor_resource(adata.uns["target_organism"])
     resource = resource[["source_genesymbol", "target_genesymbol"]].rename(
         columns={"source_genesymbol": "ligand", "target_genesymbol": "receptor"}
@@ -84,7 +84,7 @@ def _liana(
     # apply p-value filter to those that use it
     pval_methods = [
         cellphonedb.magnitude,
-        # TODO discuss: it's fair but now magnitude rank represents magnitude alone
+        # TODO discuss: it's fair but we use magnitude_rank to represent magnitude alone
         rank_aggregate.magnitude,
         geometric_mean.magnitude,
         cellchat.magnitude,
@@ -447,7 +447,7 @@ def _geomeric_mean(adata, test=False):
 @_geometric_mean_method(
     method_name="Geometric mean (sum)",
 )
-def cellchat_max(adata, test=False):
+def geometric_mean_max(adata, test=False):
     adata = _geomeric_mean(adata, test=test)
     adata.uns["ccc_pred"] = aggregate_method_scores(adata, how="sum")
 
@@ -457,7 +457,7 @@ def cellchat_max(adata, test=False):
 @_geometric_mean_method(
     method_name="Geometric mean (max)",
 )
-def cellchat_max(adata, test=False):
+def geometric_mean_max(adata, test=False):
     adata = _geomeric_mean(adata, test=test)
     adata.uns["ccc_pred"] = aggregate_method_scores(adata, how="max")
 
